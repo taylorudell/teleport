@@ -360,10 +360,20 @@ func (process *TeleportProcess) firstTimeConnect(role teleport.Role) (*Connector
 			return nil, trace.Wrap(err)
 		}
 
-		// TODO: Make this take a slice.
-		credsClient, err := client.NewCredentialsClient(process.Config.AuthServers[0].String(), lib.IsInsecureDevMode(), nil)
-		if err != nil {
-			return nil, trace.Wrap(err)
+		// Create credentials client that can be passed to the auth.Register. This
+		// client is only used with registering through the proxy. It has to be
+		// created here because lib/client can not be imported in the lib/auth due
+		// to circular imports.
+		var credsClient *client.CredentialsClient
+		if len(process.Config.AuthServers) > 0 {
+			credsClient, err = client.NewCredentialsClient(
+				process.Config.AuthServers[0].String(),
+				lib.IsInsecureDevMode(),
+				nil,
+			)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
 		}
 
 		identity, err = auth.Register(auth.RegisterParams{
@@ -780,8 +790,12 @@ func (process *TeleportProcess) newClient(authServers []utils.NetAddr, identity 
 	// connect through a tunnel.
 	log.Debugf("Attempting to connect to Auth Server directly.")
 	_, err = directClient.GetDomainName()
-	// TODO: Only do this for role==node?
 	if err != nil {
+		// Only attempt to connect through the proxy for nodes.
+		if identity.ID.Role != teleport.RoleNode {
+			return nil, false, trace.Wrap(err)
+		}
+
 		log.Debugf("Attempting to connect to Auth Server through tunnel.")
 		tunnelClient, er := process.newClientThroughTunnel(authServers, identity)
 		if er != nil {

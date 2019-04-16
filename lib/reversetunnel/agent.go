@@ -296,13 +296,6 @@ func (a *Agent) checkHostSignature(hostport string, remote net.Addr, key ssh.Pub
 		"no matching keys found when checking server's host signature")
 }
 
-func (a *Agent) proxyNodeTransport(sconn ssh.Conn, channel ssh.Channel, reqCh <-chan *ssh.Request) {
-	defer channel.Close()
-
-	// Hand connection off to the SSH server.
-	a.AgentConfig.Server.HandleConnection(utils.NewChConn(sconn, channel))
-}
-
 func (a *Agent) connect() (conn *ssh.Client, err error) {
 	for _, authMethod := range a.authMethods {
 		// if http_proxy is set, dial through the proxy

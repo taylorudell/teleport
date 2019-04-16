@@ -221,7 +221,6 @@ func (a *AuthMiddleware) GetUser(r *http.Request) (interface{}, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	// If there is any restriction on the certificate usage
 	// reject the API server request. This is done so some classes
 	// of certificates issued for kubernetes usage by proxy, can not be used
