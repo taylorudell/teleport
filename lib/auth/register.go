@@ -114,16 +114,25 @@ func Register(params RegisterParams) (*Identity, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// TODO: Figure out how to register works.
-	var registerWithAuth bool
-	if registerWithAuth {
-		return registerThroughAuth(token, params)
+	// Attempt to register through the auth server, if it fails, try and
+	// register through the proxy server.
+	ident, err := registerThroughAuth(token, params)
+	if err != nil {
+		ident, er := registerThroughProxy(token, params)
+		if er != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		log.Debugf("Successfully registered through proxy server.")
+		return ident, nil
 	}
-	return registerThroughProxy(token, params)
+
+	log.Debugf("Successfully registered through auth server.")
+	return ident, nil
 }
 
 func registerThroughProxy(token string, params RegisterParams) (*Identity, error) {
-	log.Debugf("Registering through proxy.")
+	log.Debugf("Attempting to register through proxy server.")
 
 	keys, err := params.CredsClient.HostCredentials(context.Background(),
 		RegisterUsingTokenRequest{
@@ -145,7 +154,7 @@ func registerThroughProxy(token string, params RegisterParams) (*Identity, error
 }
 
 func registerThroughAuth(token string, params RegisterParams) (*Identity, error) {
-	log.Debugf("Registering through auth.")
+	log.Debugf("Attempting to register through auth server.")
 
 	var client *Client
 	var err error
