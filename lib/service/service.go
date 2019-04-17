@@ -1401,7 +1401,6 @@ func (process *TeleportProcess) initSSH() error {
 		}
 
 		if !conn.UseTunnel {
-			fmt.Printf("")
 			listener, err := process.importOrCreateListener(teleport.ComponentNode, cfg.SSH.Addr.Addr)
 			if err != nil {
 				return trace.Wrap(err)
@@ -1490,8 +1489,7 @@ func (process *TeleportProcess) upsertTunnelForever(conn *Connector) {
 		select {
 		case <-process.ExitContext().Done():
 			return
-		// TODO: Constant.
-		case <-time.Tick(90 * time.Second):
+		case <-time.Tick(defaults.UpsertTunnelHeartbeatTick):
 			process.upsertTunnel(conn)
 		}
 	}
@@ -1508,7 +1506,7 @@ func (process *TeleportProcess) upsertTunnel(conn *Connector) {
 		[]string{proxyAddr},
 	)
 	reverseTunnel.SetType(services.NodeTunnel)
-	reverseTunnel.SetExpiry(process.Clock.Now().Add(100 * time.Second))
+	reverseTunnel.SetExpiry(process.Clock.Now().Add(defaults.UpsertTunnelHeartbeatExpiry))
 
 	err = conn.Client.UpsertReverseTunnel(reverseTunnel)
 	if err != nil {

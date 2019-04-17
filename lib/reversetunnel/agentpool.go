@@ -35,9 +35,11 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-// ServerHandler is an interface to the underlying SSH server.
+// ServerHandler implements an interface which can handle a connection
+// (perform a handshake then process). This is needed because importing
+// lib/srv in lib/reversetunnel causes a circular import.
 type ServerHandler interface {
-	// HandleConnection performs a SSH handshake and then handles the connection.
+	// HandleConnection performs a handshake then process the connection.
 	HandleConnection(conn net.Conn)
 }
 
@@ -77,9 +79,11 @@ type AgentPoolConfig struct {
 	Clock clockwork.Clock
 	// KubeDialAddr is an address of a kubernetes proxy
 	KubeDialAddr utils.NetAddr
-	// Server is the underlying SSH server.
+	// Server is a SSH server that can handle a connection (perform a handshake
+	// then process). Only set with the agent is running within a node.
 	Server ServerHandler
-	// Component is the Teleport component this agent pool is running in.
+	// Component is the Teleport component this agent pool is running in. It can
+	// either be proxy (trusted clusters) or node (dial back).
 	Component string
 }
 
@@ -300,8 +304,9 @@ func (m *AgentPool) pollAndSyncAgents() {
 
 func (m *AgentPool) addAgent(key agentKey, discoverProxies []services.Server) error {
 	// If the component connecting is a proxy, get the cluster name from the
-	// tunnelID. If it's a node, get the cluster name from the agent pool
-	// configuration itself.
+	// tunnelID (where it is the name of the remote cluster). If it's a node, get
+	// the cluster name from the agent pool configuration itself (where it is
+	// the name of the local cluster).
 	clusterName := key.tunnelID
 	if key.tunnelType == string(services.NodeTunnel) {
 		clusterName = m.cfg.Cluster
@@ -386,10 +391,14 @@ func (m *AgentPool) syncAgents(tunnels []services.ReverseTunnel) error {
 	m.Lock()
 	defer m.Unlock()
 
-	// For proxies, get all tunnels of proxy type. For nodes, get all all
-	// tunnels of type node and with the same UUID as this agent pool. Since the
-	// agent pool for nodes dialing back resides in the node itself, this makes
-	// sure only tunnels for this node are picked up.
+	// Filter out tunnels based off if the AgentPool is running in the proxy
+	// or node.
+	//
+	// For proxies, get all tunnels of type proxy.
+	//
+	// For nodes, get all tunnels of type node and with the same UUID as the host.
+	// For nodes, because the AgentPool is running in the host, this ensures it
+	// only picks up tunnels for itself.
 	filtered := make([]services.ReverseTunnel, 0, len(tunnels))
 	switch m.cfg.Component {
 	case teleport.ComponentProxy:
@@ -497,12 +506,21 @@ func diffTunnels(existingTunnels map[agentKey][]*Agent, arrivedKeys map[agentKey
 	return agentsToAdd, agentsToRemove
 }
 
+// agentKey is used to uniquely identify agents.
 type agentKey struct {
-	tunnelID   string
+	// tunnelID identifies who the tunnel is connected to. For trusted clusters,
+	// the tunnelID is the name of the remote cluster (like example.com). For
+	// nodes, it is the nodeID (like 4a050852-23b5-4d6d-a45f-bed02792d453.example.com).
+	tunnelID string
+
+	// tunnelType is the type of tunnel, is either node or proxy.
 	tunnelType string
-	addr       utils.NetAddr
+
+	// addr is the address this tunnel is agent is connected to. For example:
+	// proxy.example.com:3024.
+	addr utils.NetAddr
 }
 
 func (a *agentKey) String() string {
-	return fmt.Sprintf("agent(id=%v, type=%v, %v)", a.tunnelID, a.tunnelType, a.addr.String())
+	return fmt.Sprintf("agentKey(tunnelID=%v, type=%v, addr=%v)", a.tunnelID, a.tunnelType, a.addr.String())
 }

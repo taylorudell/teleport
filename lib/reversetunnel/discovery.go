@@ -11,11 +11,21 @@ import (
 	"github.com/gravitational/trace"
 )
 
+// discoveryRequest is a request sent from a connected proxy with the missing proxies.
 type discoveryRequest struct {
-	TunnelID    string            `json:"cluster_name"`
-	Type        string            `json:"type"`
-	ClusterAddr utils.NetAddr     `json:"-"`
-	Proxies     []services.Server `json:"proxies"`
+	// TunnelID identifies who the tunnel is connected to. For trusted clusters,
+	// the TunnelID is the name of the remote cluster (like example.com). For
+	// nodes, it is the nodeID (like 4a050852-23b5-4d6d-a45f-bed02792d453.example.com).
+	TunnelID string `json:"cluster_name"`
+
+	// Type is the type of tunnel, is either node or proxy.
+	Type string `json:"type"`
+
+	// ClusterAddr is the address of the cluster.
+	ClusterAddr utils.NetAddr `json:"-"`
+
+	// Proxies are the missing proxies.
+	Proxies []services.Server `json:"proxies"`
 }
 
 type Proxies []services.Server

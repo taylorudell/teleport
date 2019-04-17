@@ -435,6 +435,7 @@ func (a *Agent) processRequests(conn *ssh.Client) error {
 				requestCh:    req,
 				sconn:        conn.Conn,
 				server:       a.Server,
+				component:    teleport.ComponentReverseTunnelAgent,
 			})
 		// new discovery request
 		case nch := <-newDiscoveryC:
@@ -491,8 +492,9 @@ func (a *Agent) handleDiscovery(ch ssh.Channel, reqC <-chan *ssh.Request) {
 }
 
 const (
-	chanHeartbeat = "teleport-heartbeat"
-	chanDiscovery = "teleport-discovery"
+	chanHeartbeat    = "teleport-heartbeat"
+	chanDiscovery    = "teleport-discovery"
+	chanDiscoveryReq = "discovery"
 )
 
 const (

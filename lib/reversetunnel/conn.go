@@ -41,11 +41,10 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// remoteConn holds a connection to a remote host, either node or proxy.
 type remoteConn struct {
 	*connConfig
-
-	mu sync.Mutex
-
+	mu  sync.Mutex
 	log *logrus.Entry
 
 	// discoveryCh is the channel over which discovery requests are sent.
@@ -67,11 +66,14 @@ type remoteConn struct {
 	closeContext context.Context
 	closeCancel  context.CancelFunc
 
+	// clock is used to control time in tests.
 	clock clockwork.Clock
 
+	// lastHeartbeat is the last time a heartbeat was received.
 	lastHeartbeat int64
 }
 
+// connConfig is the configuration for the remoteConn.
 type connConfig struct {
 	// conn is the underlying net.Conn.
 	conn net.Conn
@@ -83,7 +85,7 @@ type connConfig struct {
 	accessPoint auth.AccessPoint
 
 	// tunnelID is the tunnel ID. This is either the cluster name (trusted
-	// clusters) or the host UUID (nodes dialing back).
+	// clusters) or hostUUID.clusterName (nodes dialing back).
 	tunnelID string
 
 	// tunnelType is the type of tunnel connection, either proxy or node.
@@ -92,7 +94,7 @@ type connConfig struct {
 	// proxyName is the name of the proxy this remoteConn is located in.
 	proxyName string
 
-	// clusterName is the name of the cluster this tunnel is assoicated with.
+	// clusterName is the name of the cluster this tunnel is associated with.
 	clusterName string
 }
 
@@ -142,6 +144,7 @@ func (c *remoteConn) Close() error {
 
 }
 
+// OpenChannel will open a SSH channel to the remote side.
 func (c *remoteConn) OpenChannel(name string, data []byte) (ssh.Channel, error) {
 	channel, _, err := c.sconn.OpenChannel(name, data)
 	if err != nil {
@@ -151,6 +154,7 @@ func (c *remoteConn) OpenChannel(name string, data []byte) (ssh.Channel, error) 
 	return channel, nil
 }
 
+// ChannelConn creates a net.Conn over a SSH channel.
 func (c *remoteConn) ChannelConn(channel ssh.Channel) net.Conn {
 	return utils.NewChConn(c.sconn, channel)
 }
@@ -253,7 +257,7 @@ func (c *remoteConn) findAndSend() error {
 }
 
 // findDisconnectedProxies finds proxies that do not have inbound reverse tunnel
-// connections
+// connections.
 func (c *remoteConn) findDisconnectedProxies() ([]services.Server, error) {
 	// Find all proxies that have connection from the remote domain.
 	conns, err := c.accessPoint.GetTunnelConnections(c.clusterName, services.SkipValidation())
@@ -302,7 +306,7 @@ func (c *remoteConn) sendDiscoveryRequests(req discoveryRequest) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	_, err = discoveryCh.SendRequest("discovery", false, payload)
+	_, err = discoveryCh.SendRequest(chanDiscoveryReq, false, payload)
 	if err != nil {
 		c.markInvalid(err)
 		return trace.Wrap(err)
@@ -316,20 +320,20 @@ func (c *remoteConn) isOnline(conn services.TunnelConnection) bool {
 }
 
 type transportParams struct {
+	component    string
 	log          *logrus.Entry
 	closeContext context.Context
 	authClient   auth.ClientI
 	channel      ssh.Channel
 	requestCh    <-chan *ssh.Request
 
+	// kubeDialAddr is the address of the Kubernetes proxy.
 	kubeDialAddr utils.NetAddr
 
-	sconn  ssh.Conn
+	// sconn is a SSH connection to the remote host. Used for dial back nodes.
+	sconn ssh.Conn
+	// server is the underlying SSH server. Used for dial back nodes.
 	server ServerHandler
-}
-
-func (t *transportParams) Check() error {
-	return nil
 }
 
 // connectProxyTransport opens a channel over the remote tunnel and connects
@@ -369,13 +373,6 @@ func connectProxyTransport(rconn *remoteConn, addr string) (net.Conn, bool, erro
 // or for remote nodes that have no direct network access to the cluster.
 func proxyTransport(p *transportParams) {
 	defer p.channel.Close()
-
-	// Make sure the transport request is even valid.
-	err := p.Check()
-	if err != nil {
-		p.log.Warnf("Transport request failed: %v.", err)
-		return
-	}
 
 	// Always push space into stderr to make sure the caller can always
 	// safely call read (stderr) without blocking. This stderr is only used
@@ -419,6 +416,11 @@ func proxyTransport(p *transportParams) {
 			servers = append(servers, as.GetAddr())
 		}
 	case RemoteKubeProxy:
+		if p.component == teleport.ComponentReverseTunnelServer {
+			req.Reply(false, []byte("connection rejected: no remote kubernetes proxy"))
+			return
+		}
+
 		// If Kubernetes is not configured, reject the connection.
 		if p.kubeDialAddr.IsEmpty() {
 			req.Reply(false, []byte("connection rejected: configure kubernetes proxy for this cluster."))
@@ -427,8 +429,16 @@ func proxyTransport(p *transportParams) {
 		servers = append(servers, p.kubeDialAddr.Addr)
 	// LocalNode requests are for the single server running in the agent pool.
 	case LocalNode:
+		if p.component == teleport.ComponentReverseTunnelServer {
+			req.Reply(false, []byte("connection rejected: no local node"))
+			return
+		}
 		if p.server == nil {
-			req.Reply(false, []byte("connection rejected: server not set"))
+			req.Reply(false, []byte("connection rejected: server missing"))
+			return
+		}
+		if p.sconn == nil {
+			req.Reply(false, []byte("connection rejected: server connection missing"))
 			return
 		}
 
@@ -444,6 +454,7 @@ func proxyTransport(p *transportParams) {
 	p.log.Debugf("Received out-of-band proxy transport request: %v", servers)
 
 	// Loop over all servers and try and connect to one of them.
+	var err error
 	var conn net.Conn
 	for _, s := range servers {
 		conn, err = net.Dial("tcp", s)

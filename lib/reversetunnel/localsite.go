@@ -127,7 +127,8 @@ func (s *localSite) GetName() string {
 	return s.domainName
 }
 
-// TODO: Fix this.
+// GetLastConnected returns the current time because the localsite is always
+// connected.
 func (s *localSite) GetLastConnected() time.Time {
 	return time.Now()
 }

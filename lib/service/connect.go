@@ -123,7 +123,6 @@ func (process *TeleportProcess) connect(role teleport.Role) (conn *Connector, er
 			return &Connector{
 				ClientIdentity: identity,
 				ServerIdentity: identity,
-				// UseTunnel:         useTunnel,
 			}, nil
 		}
 		log.Infof("Connecting to the cluster %v with TLS client certificate.", identity.ClusterName)
@@ -146,7 +145,6 @@ func (process *TeleportProcess) connect(role teleport.Role) (conn *Connector, er
 				return &Connector{
 					ClientIdentity: identity,
 					ServerIdentity: identity,
-					//UseTunnel:         true,
 				}, nil
 			}
 			client, useTunnel, err := process.newClient(process.Config.AuthServers, identity)

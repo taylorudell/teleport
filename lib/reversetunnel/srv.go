@@ -495,8 +495,11 @@ func (s *server) HandleNewChan(conn net.Conn, sconn *ssh.ServerConn, nch ssh.New
 
 	channelType := nch.ChannelType()
 	switch channelType {
+	// Heartbeats can come from nodes or proxies.
 	case chanHeartbeat:
 		s.handleHeartbeat(conn, sconn, nch)
+	// Transport requests come from nodes requesting a connection to the Auth
+	// Server through the reverse tunnel.
 	case ChanTransport:
 		s.handleTransport(sconn, nch)
 	default:
@@ -530,6 +533,7 @@ func (s *server) handleTransport(sconn *ssh.ServerConn, nch ssh.NewChannel) {
 		authClient:   s.LocalAuthClient,
 		channel:      channel,
 		requestCh:    requestCh,
+		component:    teleport.ComponentReverseTunnelServer,
 	})
 }
 
