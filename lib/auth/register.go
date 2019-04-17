@@ -94,7 +94,8 @@ type RegisterParams struct {
 }
 
 // CredGetter is an interface for a client that can be used to get host
-// credentials.
+// credentials. This interface is needed because lib/client can not be imported
+// in lib/auth due to circular imports.
 type CredGetter interface {
 	// HostCredentials are used to get a server host credentials.
 	HostCredentials(context.Context, RegisterUsingTokenRequest) (*PackedKeys, error)
@@ -118,7 +119,7 @@ func Register(params RegisterParams) (*Identity, error) {
 	if err != nil {
 		ident, er := registerThroughProxy(token, params)
 		if er != nil {
-			return nil, trace.Wrap(err)
+			return nil, trace.NewAggregate(err, er)
 		}
 
 		log.Debugf("Successfully registered through proxy server.")

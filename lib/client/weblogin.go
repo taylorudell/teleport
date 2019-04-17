@@ -1,5 +1,5 @@
 /*
-Copyright 2015 Gravitational, Inc.
+Copyright 2015-2019 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -51,31 +51,6 @@ const (
 	// WSS is secure web sockets prefix
 	WSS = "wss"
 )
-
-// SSHLogin contains SSH login parameters
-type SSHLogin struct {
-	// Context is an external context
-	Context context.Context
-	// ProxyAddr is the target proxy address
-	ProxyAddr string
-	// ConnectorID is the OIDC or SAML connector ID to use
-	ConnectorID string
-	// PubKey is SSH public key to sign
-	PubKey []byte
-	// TTL is requested TTL of the client certificates
-	TTL time.Duration
-	// Insecure turns off verification for x509 target proxy
-	Insecure bool
-	// Pool is x509 cert pool to use for server certifcate verification
-	Pool *x509.CertPool
-	// Protocol is an optional protocol selection
-	Protocol string
-	// Compatibility sets compatibility mode for SSH certificates
-	Compatibility string
-	// BindAddr is an optional host:port address to bind
-	// to for SSO login flows
-	BindAddr string
-}
 
 // SSOLoginConsoleReq is used to SSO for tsh
 type SSOLoginConsoleReq struct {
@@ -162,6 +137,31 @@ type PingResponse struct {
 	ServerVersion string `json:"server_version"`
 	// MinClientVersion is the minimum client version required by the server.
 	MinClientVersion string `json:"min_client_version"`
+}
+
+// SSHLogin contains SSH login parameters
+type SSHLogin struct {
+	// Context is an external context
+	Context context.Context
+	// ProxyAddr is the target proxy address
+	ProxyAddr string
+	// ConnectorID is the OIDC or SAML connector ID to use
+	ConnectorID string
+	// PubKey is SSH public key to sign
+	PubKey []byte
+	// TTL is requested TTL of the client certificates
+	TTL time.Duration
+	// Insecure turns off verification for x509 target proxy
+	Insecure bool
+	// Pool is x509 cert pool to use for server certifcate verification
+	Pool *x509.CertPool
+	// Protocol is an optional protocol selection
+	Protocol string
+	// Compatibility sets compatibility mode for SSH certificates
+	Compatibility string
+	// BindAddr is an optional host:port address to bind
+	// to for SSO login flows
+	BindAddr string
 }
 
 // ProxySettings contains basic information about proxy settings

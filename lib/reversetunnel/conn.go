@@ -335,7 +335,7 @@ func (t *transportParams) Check() error {
 // connectProxyTransport opens a channel over the remote tunnel and connects
 // to the requested host.
 func connectProxyTransport(rconn *remoteConn, addr string) (net.Conn, bool, error) {
-	channel, err := rconn.OpenChannel(chanTransport, nil)
+	channel, err := rconn.OpenChannel(ChanTransport, nil)
 	if err != nil {
 		rconn.markInvalid(err)
 		return nil, false, trace.Wrap(err)
@@ -345,7 +345,7 @@ func connectProxyTransport(rconn *remoteConn, addr string) (net.Conn, bool, erro
 	// the agent on the other side will create a new TCP/IP connection to
 	// 'addr' on its network and will start proxying that connection over
 	// this SSH channel.
-	ok, err := channel.SendRequest(chanTransportDialReq, true, []byte(addr))
+	ok, err := channel.SendRequest(ChanTransportDialReq, true, []byte(addr))
 	if err != nil {
 		return nil, false, trace.Wrap(err)
 	}
@@ -427,6 +427,11 @@ func proxyTransport(p *transportParams) {
 		servers = append(servers, p.kubeDialAddr.Addr)
 	// LocalNode requests are for the single server running in the agent pool.
 	case LocalNode:
+		if p.server == nil {
+			req.Reply(false, []byte("connection rejected: server not set"))
+			return
+		}
+
 		req.Reply(true, []byte("Connected."))
 
 		// Hand connection off to the SSH server.

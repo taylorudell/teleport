@@ -61,7 +61,9 @@ const (
 type AgentConfig struct {
 	// Addr is target address to dial
 	Addr utils.NetAddr
-	// ClusterName is the name of the cluster the tunnel is connected to.
+	// ClusterName is the name of the cluster the tunnel is connected to. When the
+	// agent is running in a proxy, it's the name of the remote cluster, when the
+	// agent is running in a node, it's the name of the local cluster.
 	ClusterName string
 	// Signers contains authentication signers
 	Signers []ssh.Signer
@@ -86,7 +88,8 @@ type AgentConfig struct {
 	EventsC chan string
 	// KubeDialAddr is a dial address for kubernetes proxy
 	KubeDialAddr utils.NetAddr
-	// Server is the underlying SSH server which can handle the connection.
+	// Server is a SSH server that can handle a connection (perform a handshake
+	// then process). Only set with the agent is running within a node.
 	Server ServerHandler
 }
 
@@ -387,8 +390,7 @@ func (a *Agent) processRequests(conn *ssh.Client) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	newTransportC := conn.HandleChannelOpen(chanTransport)
+	newTransportC := conn.HandleChannelOpen(ChanTransport)
 	newDiscoveryC := conn.HandleChannelOpen(chanDiscovery)
 
 	// send first ping right away, then start a ping timer:
@@ -399,11 +401,6 @@ func (a *Agent) processRequests(conn *ssh.Client) error {
 		// need to exit:
 		case <-a.ctx.Done():
 			return trace.ConnectionProblem(nil, "heartbeat: agent is stopped")
-		// ssh channel closed:
-		case req := <-reqC:
-			if req == nil {
-				return trace.ConnectionProblem(nil, "heartbeat: connection closed")
-			}
 		// time to ping:
 		case <-ticker.C:
 			bytes, _ := a.Clock.Now().UTC().MarshalText()
@@ -413,7 +410,12 @@ func (a *Agent) processRequests(conn *ssh.Client) error {
 				return trace.Wrap(err)
 			}
 			a.Debugf("Ping -> %v.", conn.RemoteAddr())
-		// Transport request.
+		// ssh channel closed:
+		case req := <-reqC:
+			if req == nil {
+				return trace.ConnectionProblem(nil, "heartbeat: connection closed")
+			}
+		// new transport request:
 		case nch := <-newTransportC:
 			if nch == nil {
 				continue
@@ -434,6 +436,7 @@ func (a *Agent) processRequests(conn *ssh.Client) error {
 				sconn:        conn.Conn,
 				server:       a.Server,
 			})
+		// new discovery request
 		case nch := <-newDiscoveryC:
 			if nch == nil {
 				continue
@@ -488,11 +491,20 @@ func (a *Agent) handleDiscovery(ch ssh.Channel, reqC <-chan *ssh.Request) {
 }
 
 const (
-	chanHeartbeat        = "teleport-heartbeat"
-	chanTransport        = "teleport-transport"
-	chanTransportNode    = "teleport-transport-node"
-	chanTransportDialReq = "teleport-transport-dial"
-	chanDiscovery        = "teleport-discovery"
+	chanHeartbeat = "teleport-heartbeat"
+	chanDiscovery = "teleport-discovery"
+)
+
+const (
+	// ChanTransport is a channel type that can be used to open a net.Conn
+	// through the reverse tunnel server. Used for trusted clusters and dial back
+	// nodes.
+	ChanTransport = "teleport-transport"
+
+	// ChanTransportDialReq is the first (and only) request sent on a
+	// ChanTransport channel. It's payload is the address of the host a
+	// connection should be established to.
+	ChanTransportDialReq = "teleport-transport-dial"
 )
 
 const (

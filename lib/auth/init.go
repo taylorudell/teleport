@@ -388,7 +388,7 @@ func Init(cfg InitConfig, opts ...AuthServerOption) (*AuthServer, error) {
 		log.Warn(warningMessage)
 	}
 
-	// migrate any legacy resources to new format
+	// Migrate any legacy resources to new format.
 	err = migrateLegacyResources(cfg, asrv)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -407,10 +407,6 @@ func Init(cfg InitConfig, opts ...AuthServerOption) (*AuthServer, error) {
 func migrateLegacyResources(cfg InitConfig, asrv *AuthServer) error {
 	var err error
 
-	err = migrateAdminRole(asrv)
-	if err != nil {
-		return trace.Wrap(err)
-	}
 	err = migrateRoleRules(asrv)
 	if err != nil {
 		return trace.Wrap(err)
@@ -418,20 +414,7 @@ func migrateLegacyResources(cfg InitConfig, asrv *AuthServer) error {
 	return nil
 }
 
-func migrateAdminRole(asrv *AuthServer) error {
-	defaultRole := services.NewAdminRole()
-	role, err := asrv.GetRole(defaultRole.GetName())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if len(role.GetKubeGroups(services.Allow)) != 0 {
-		return nil
-	}
-	log.Infof("Migrating default admin role, adding default kubernetes groups.")
-	role.SetKubeGroups(services.Allow, defaultRole.GetKubeGroups(services.Allow))
-	return asrv.UpsertRole(role)
-}
-
+// DELETE IN: 4.1
 // migrateRoleRules adds missing permissions to roles.
 //
 // Currently it adds read-only permissions for audit events to all roles that
@@ -533,7 +516,7 @@ type Identity struct {
 	// TLSCACertBytes is a list of PEM encoded TLS x509 certificate of certificate authority
 	// associated with auth server services
 	TLSCACertsBytes [][]byte
-	// SSHCACertBytes is the bytes of the SSH CA encoded in the authorized_keys format.
+	// SSHCACertBytes is a list of SSH CAs encoded in the authorized_keys format.
 	SSHCACertBytes [][]byte
 	// KeySigner is an SSH host certificate signer
 	KeySigner ssh.Signer
@@ -647,7 +630,7 @@ func (i *Identity) TLSConfig(cipherSuites []uint16) (*tls.Config, error) {
 }
 
 // SSHClientConfig returns a ssh.ClientConfig used by nodes to connect to
-// the reverse tunnel server to establish a reverse tunnel.
+// the reverse tunnel server.
 func (i *Identity) SSHClientConfig() *ssh.ClientConfig {
 	return &ssh.ClientConfig{
 		User: i.ID.HostUUID,

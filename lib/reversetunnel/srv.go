@@ -497,8 +497,7 @@ func (s *server) HandleNewChan(conn net.Conn, sconn *ssh.ServerConn, nch ssh.New
 	switch channelType {
 	case chanHeartbeat:
 		s.handleHeartbeat(conn, sconn, nch)
-	// TODO: Use a constant.
-	case "teleport-transport":
+	case ChanTransport:
 		s.handleTransport(sconn, nch)
 	default:
 		msg := fmt.Sprintf("reversetunnel received unknown channel request %v from %v",

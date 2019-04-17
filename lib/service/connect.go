@@ -868,12 +868,12 @@ func (process *TeleportProcess) newClientThroughTunnel(servers []utils.NetAddr, 
 
 	// Connect to the Auth Server through the reverse tunnel server.
 	authDialer := func(in context.Context, network, addr string) (net.Conn, error) {
-		channel, _, err := conn.OpenChannel("teleport-transport", nil)
+		channel, _, err := conn.OpenChannel(reversetunnel.ChanTransport, nil)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		ok, err := channel.SendRequest("teleport-transport", true, []byte(reversetunnel.RemoteAuthServer))
+		ok, err := channel.SendRequest(reversetunnel.ChanTransportDialReq, true, []byte(reversetunnel.RemoteAuthServer))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
