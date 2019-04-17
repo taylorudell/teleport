@@ -54,7 +54,7 @@ func (x Operation) String() string {
 	return proto.EnumName(Operation_name, int32(x))
 }
 func (Operation) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_auth_690fdaf70713e425, []int{0}
+	return fileDescriptor_auth_1c67c241dc026532, []int{0}
 }
 
 // Event returns cluster event
@@ -86,7 +86,7 @@ func (m *Event) Reset()         { *m = Event{} }
 func (m *Event) String() string { return proto.CompactTextString(m) }
 func (*Event) ProtoMessage()    {}
 func (*Event) Descriptor() ([]byte, []int) {
-	return fileDescriptor_auth_690fdaf70713e425, []int{0}
+	return fileDescriptor_auth_1c67c241dc026532, []int{0}
 }
 func (m *Event) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -539,7 +539,7 @@ func (m *Watch) Reset()         { *m = Watch{} }
 func (m *Watch) String() string { return proto.CompactTextString(m) }
 func (*Watch) ProtoMessage()    {}
 func (*Watch) Descriptor() ([]byte, []int) {
-	return fileDescriptor_auth_690fdaf70713e425, []int{1}
+	return fileDescriptor_auth_1c67c241dc026532, []int{1}
 }
 func (m *Watch) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -587,7 +587,7 @@ func (m *WatchKind) Reset()         { *m = WatchKind{} }
 func (m *WatchKind) String() string { return proto.CompactTextString(m) }
 func (*WatchKind) ProtoMessage()    {}
 func (*WatchKind) Descriptor() ([]byte, []int) {
-	return fileDescriptor_auth_690fdaf70713e425, []int{2}
+	return fileDescriptor_auth_1c67c241dc026532, []int{2}
 }
 func (m *WatchKind) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -2056,9 +2056,9 @@ var (
 	ErrIntOverflowAuth   = fmt.Errorf("proto: integer overflow")
 )
 
-func init() { proto.RegisterFile("auth.proto", fileDescriptor_auth_690fdaf70713e425) }
+func init() { proto.RegisterFile("auth.proto", fileDescriptor_auth_1c67c241dc026532) }
 
-var fileDescriptor_auth_690fdaf70713e425 = []byte{
+var fileDescriptor_auth_1c67c241dc026532 = []byte{
 	// 827 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x6c, 0x94, 0xd1, 0x6e, 0xdb, 0x36,
 	0x14, 0x86, 0xad, 0xc6, 0x4e, 0x6d, 0x3a, 0xf5, 0x0c, 0x36, 0x48, 0x54, 0x27, 0xb3, 0x82, 0x5c,

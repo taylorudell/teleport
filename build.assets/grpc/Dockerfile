@@ -1,4 +1,4 @@
-FROM golang:latest
+FROM golang:1.12.4-stretch
 
 ARG PROTOC_VER
 ARG GOGO_PROTO_TAG

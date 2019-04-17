@@ -24,8 +24,6 @@ import (
 	"crypto/x509/pkix"
 	"fmt"
 	"net"
-	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -407,14 +405,8 @@ func Init(cfg InitConfig, opts ...AuthServerOption) (*AuthServer, error) {
 }
 
 func migrateLegacyResources(cfg InitConfig, asrv *AuthServer) error {
-	err := migrateRemoteClusters(asrv)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	//err = migrateIdentities(cfg.DataDir)
-	//if err != nil {
-	//	return trace.Wrap(err)
-	//}
+	var err error
+
 	err = migrateAdminRole(asrv)
 	if err != nil {
 		return trace.Wrap(err)
@@ -425,42 +417,6 @@ func migrateLegacyResources(cfg InitConfig, asrv *AuthServer) error {
 	}
 	return nil
 }
-
-//func migrateIdentities(dataDir string) error {
-//	storage, err := NewProcessStorage(context.TODO(), filepath.Join(dataDir, teleport.ComponentProcess))
-//	if err != nil {
-//		return trace.Wrap(err)
-//	}
-//	defer storage.Close()
-//	for _, role := range []teleport.Role{teleport.RoleAdmin, teleport.RoleProxy, teleport.RoleNode} {
-//		if err := migrateIdentity(role, dataDir, storage); err != nil {
-//			return trace.Wrap(err)
-//		}
-//	}
-//	return nil
-//}
-
-//func migrateIdentity(role teleport.Role, dataDir string, storage *ProcessStorage) error {
-//	identity, err := readIdentityCompat(dataDir, IdentityID{Role: role})
-//	if err != nil {
-//		if !trace.IsNotFound(err) {
-//			return trace.Wrap(err)
-//		}
-//		return nil
-//	}
-//	err = storage.WriteIdentity(IdentityCurrent, *identity)
-//	if err != nil {
-//		return trace.Wrap(err)
-//	}
-//	err = removeIdentityCompat(dataDir, IdentityID{Role: role})
-//	if err != nil {
-//		if !trace.IsNotFound(err) {
-//			return trace.Wrap(err)
-//		}
-//	}
-//	log.Infof("Identity %v has been migrated to new on-disk format.", role)
-//	return nil
-//}
 
 func migrateAdminRole(asrv *AuthServer) error {
 	defaultRole := services.NewAdminRole()
@@ -561,7 +517,7 @@ func GenerateIdentity(a *AuthServer, id IdentityID, additionalPrincipals, dnsNam
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return ReadIdentityFromKeyPair(keys.Key, keys.Cert, keys.TLSCert, keys.TLSCACerts, keys.SSHCACerts)
+	return ReadIdentityFromKeyPair(keys)
 }
 
 // Identity is collection of certificates and signers that represent server identity
@@ -577,7 +533,7 @@ type Identity struct {
 	// TLSCACertBytes is a list of PEM encoded TLS x509 certificate of certificate authority
 	// associated with auth server services
 	TLSCACertsBytes [][]byte
-	// SSHCACertBytes
+	// SSHCACertBytes is the bytes of the SSH CA encoded in the authorized_keys format.
 	SSHCACertBytes [][]byte
 	// KeySigner is an SSH host certificate signer
 	KeySigner ssh.Signer
@@ -751,23 +707,28 @@ func (id *IdentityID) String() string {
 	return fmt.Sprintf("Identity(hostuuid=%v, role=%v)", id.HostUUID, id.Role)
 }
 
-// ReadIdentityFromKeyPair reads TLS identity from key pair
-func ReadIdentityFromKeyPair(keyBytes, sshCertBytes, tlsCertBytes []byte, tlsCACertsBytes [][]byte, sshCACertBytes [][]byte) (*Identity, error) {
-	identity, err := ReadSSHIdentityFromKeyPair(keyBytes, sshCertBytes)
+// ReadIdentityFromKeyPair reads SSH and TLS identity from key pair.
+func ReadIdentityFromKeyPair(keys *PackedKeys) (*Identity, error) {
+	identity, err := ReadSSHIdentityFromKeyPair(keys.Key, keys.Cert)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	identity.SSHCACertBytes = sshCACertBytes
-	if len(tlsCertBytes) != 0 {
-		// just to verify that identity parses properly for future use
-		i, err := ReadTLSIdentityFromKeyPair(keyBytes, tlsCertBytes, tlsCACertsBytes)
+
+	if len(keys.SSHCACerts) != 0 {
+		identity.SSHCACertBytes = keys.SSHCACerts
+	}
+
+	if len(keys.TLSCACerts) != 0 {
+		// Parse the key pair to verify that identity parses properly for future use.
+		i, err := ReadTLSIdentityFromKeyPair(keys.Key, keys.TLSCert, keys.TLSCACerts)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		identity.TLSCertBytes = tlsCertBytes
-		identity.TLSCACertsBytes = tlsCACertsBytes
 		identity.XCert = i.XCert
+		identity.TLSCertBytes = keys.TLSCert
+		identity.TLSCACertsBytes = keys.TLSCACerts
 	}
+
 	return identity, nil
 }
 
@@ -899,139 +860,4 @@ func ReadLocalIdentity(dataDir string, id IdentityID) (*Identity, error) {
 	}
 	defer storage.Close()
 	return storage.ReadIdentity(IdentityCurrent, id.Role)
-}
-
-// DELETE IN(2.7.0)
-// removeIdentityCompat removes identity from disk
-func removeIdentityCompat(dataDir string, id IdentityID) error {
-	path := keysPath(dataDir, id)
-	for _, filePath := range []string{path.key, path.sshCert, path.tlsCert, path.tlsCACert} {
-		err := trace.ConvertSystemError(os.Remove(filePath))
-		if err != nil {
-			if !trace.IsNotFound(err) {
-				return trace.Wrap(err)
-			}
-		}
-	}
-	return nil
-}
-
-// DELETE IN: 2.7.0
-// NOTE: Sadly, our integration tests depend on this logic
-// because they create remote cluster resource. Our integration
-// tests should be migrated to use trusted clusters instead of manually
-// creating tunnels.
-// This migration adds remote cluster resource migrating from 2.5.0
-// where the presence of remote cluster was identified only by presence
-// of host certificate authority with cluster name not equal local cluster name
-func migrateRemoteClusters(asrv *AuthServer) error {
-	clusterName, err := asrv.GetClusterName()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	certAuthorities, err := asrv.GetCertAuthorities(services.HostCA, false)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	// loop over all roles and make sure any v3 roles have permit port
-	// forward and forward agent allowed
-	for _, certAuthority := range certAuthorities {
-		if certAuthority.GetName() == clusterName.GetClusterName() {
-			log.Debugf("Migrations: skipping local cluster cert authority %q.", certAuthority.GetName())
-			continue
-		}
-		// remote cluster already exists
-		_, err = asrv.GetRemoteCluster(certAuthority.GetName())
-		if err == nil {
-			log.Debugf("Migrations: remote cluster already exists for cert authority %q.", certAuthority.GetName())
-			continue
-		}
-		if !trace.IsNotFound(err) {
-			return trace.Wrap(err)
-		}
-		// the cert authority is associated with trusted cluster
-		_, err = asrv.GetTrustedCluster(certAuthority.GetName())
-		if err == nil {
-			log.Debugf("Migrations: trusted cluster resource exists for cert authority %q.", certAuthority.GetName())
-			continue
-		}
-		if !trace.IsNotFound(err) {
-			return trace.Wrap(err)
-		}
-		remoteCluster, err := services.NewRemoteCluster(certAuthority.GetName())
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		err = asrv.CreateRemoteCluster(remoteCluster)
-		if err != nil {
-			if !trace.IsAlreadyExists(err) {
-				return trace.Wrap(err)
-			}
-		}
-		log.Infof("Migrations: added remote cluster resource for cert authority %q.", certAuthority.GetName())
-	}
-
-	return nil
-}
-
-//// DELETE IN(2.7.0)
-//// readIdentityCompat reads, parses and returns the given pub/pri key + cert from the
-//// key storage (dataDir). Used for data migrations
-//func readIdentityCompat(dataDir string, id IdentityID) (i *Identity, err error) {
-//	path := keysPath(dataDir, id)
-//
-//	keyBytes, err := utils.ReadPath(path.key)
-//	if err != nil {
-//		return nil, trace.Wrap(err)
-//	}
-//
-//	sshCertBytes, err := utils.ReadPath(path.sshCert)
-//	if err != nil {
-//		return nil, trace.Wrap(err)
-//	}
-//
-//	// initially ignore absence of TLS identity for read purposes
-//	tlsCertBytes, err := utils.ReadPath(path.tlsCert)
-//	if err != nil {
-//		if !trace.IsNotFound(err) {
-//			return nil, trace.Wrap(err)
-//		}
-//	}
-//
-//	tlsCACertBytes, err := utils.ReadPath(path.tlsCACert)
-//	if err != nil {
-//		if !trace.IsNotFound(err) {
-//			return nil, trace.Wrap(err)
-//		}
-//	}
-//
-//	identity, err := ReadIdentityFromKeyPair(keyBytes, sshCertBytes, tlsCertBytes, [][]byte{tlsCACertBytes}, )
-//	if err != nil {
-//		return nil, trace.Wrap(err)
-//	}
-//
-//	// Inject nodename back into identity read from disk.
-//	identity.ID.NodeName = id.NodeName
-//
-//	return identity, nil
-//}
-
-// DELETE IN(2.7.0)
-type paths struct {
-	dataDir   string
-	key       string
-	sshCert   string
-	tlsCert   string
-	tlsCACert string
-}
-
-// DELETE IN(2.7.0)
-// keysPath returns two full file paths: to the host.key and host.cert
-func keysPath(dataDir string, id IdentityID) paths {
-	return paths{
-		key:       filepath.Join(dataDir, fmt.Sprintf("%s.key", strings.ToLower(string(id.Role)))),
-		sshCert:   filepath.Join(dataDir, fmt.Sprintf("%s.cert", strings.ToLower(string(id.Role)))),
-		tlsCert:   filepath.Join(dataDir, fmt.Sprintf("%s.tlscert", strings.ToLower(string(id.Role)))),
-		tlsCACert: filepath.Join(dataDir, fmt.Sprintf("%s.tlscacert", strings.ToLower(string(id.Role)))),
-	}
 }

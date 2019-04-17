@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/pborman/uuid"
+	"github.com/sirupsen/logrus"
 	"github.com/tstranex/u2f"
 )
 
@@ -245,12 +246,16 @@ type GithubSettings struct {
 // CredentialsClient is used to fetch user and host credentials from the
 // HTTPS web proxy.
 type CredentialsClient struct {
+	log *logrus.Entry
 	clt *WebClient
 	url *url.URL
 }
 
 // NewCredentialsClient creates a new client to the HTTPS web proxy.
 func NewCredentialsClient(proxyAddr string, insecure bool, pool *x509.CertPool) (*CredentialsClient, error) {
+	log := logrus.WithFields(logrus.Fields{
+		trace.Component: teleport.ComponentClient,
+	})
 	log.Debugf("HTTPS client init(proxyAddr=%v, insecure=%v)", proxyAddr, insecure)
 
 	// validate proxyAddr:
@@ -270,7 +275,7 @@ func NewCredentialsClient(proxyAddr string, insecure bool, pool *x509.CertPool) 
 	var opts []roundtrip.ClientParam
 
 	if insecure {
-		// skip https cert verification, oh no!
+		// Skip https cert verification, print a warning that this is insecure.
 		fmt.Printf("WARNING: You are using insecure connection to SSH proxy %v\n", proxyAddr)
 		opts = append(opts, roundtrip.HTTPClient(NewInsecureWebClient()))
 	} else if pool != nil {
@@ -284,6 +289,7 @@ func NewCredentialsClient(proxyAddr string, insecure bool, pool *x509.CertPool) 
 	}
 
 	return &CredentialsClient{
+		log: log,
 		clt: clt,
 		url: u,
 	}, nil
@@ -316,11 +322,6 @@ func (c *CredentialsClient) Ping(ctx context.Context, connectorName string) (*Pi
 
 // SSHAgentSSOLogin is used by tsh to fetch user credentials using OpenID Connect (OIDC) or SAML.
 func (c *CredentialsClient) SSHAgentSSOLogin(login SSHLogin) (*auth.SSHLoginResponse, error) {
-	//clt, proxyURL, err := initClient(login.ProxyAddr, login.Insecure, login.Pool)
-	//if err != nil {
-	//	return nil, trace.Wrap(err)
-	//}
-
 	// Create secret key that will be sent with the request and then used the
 	// decrypt the response from the server.
 	key, err := secret.NewKey()
@@ -459,7 +460,7 @@ func (c *CredentialsClient) SSHAgentSSOLogin(login SSHLogin) (*auth.SSHLoginResp
 	fmt.Printf("If browser window does not open automatically, open it by ")
 	fmt.Printf("clicking on the link:\n %v\n", utils.ClickableURL(redirURL))
 
-	log.Infof("Waiting for response at: %v.", server.URL)
+	c.log.Infof("Waiting for response at: %v.", server.URL)
 
 	select {
 	case err := <-errorC:

@@ -22,7 +22,6 @@ package reversetunnel
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
 	"net"
 	"sync"
@@ -66,8 +65,6 @@ type AgentConfig struct {
 	ClusterName string
 	// Signers contains authentication signers
 	Signers []ssh.Signer
-	// TLSConfig
-	TLSConfig *tls.Config
 	// Client is a client to the local auth servers
 	Client auth.ClientI
 	// AccessPoint is a caching access point to the local auth servers
@@ -89,7 +86,7 @@ type AgentConfig struct {
 	EventsC chan string
 	// KubeDialAddr is a dial address for kubernetes proxy
 	KubeDialAddr utils.NetAddr
-	// Server
+	// Server is the underlying SSH server which can handle the connection.
 	Server ServerHandler
 }
 

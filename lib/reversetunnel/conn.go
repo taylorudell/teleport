@@ -73,29 +73,29 @@ type remoteConn struct {
 }
 
 type connConfig struct {
-	// conn
+	// conn is the underlying net.Conn.
 	conn net.Conn
 
-	// sconn
+	// sconn is the underlying SSH connection.
 	sconn ssh.Conn
 
 	// accessPoint provides access to the Auth Server API.
 	accessPoint auth.AccessPoint
 
-	// tunnelID
+	// tunnelID is the tunnel ID. This is either the cluster name (trusted
+	// clusters) or the host UUID (nodes dialing back).
 	tunnelID string
 
-	// tunnelType
+	// tunnelType is the type of tunnel connection, either proxy or node.
 	tunnelType string
 
 	// proxyName is the name of the proxy this remoteConn is located in.
 	proxyName string
 
-	//
+	// clusterName is the name of the cluster this tunnel is assoicated with.
 	clusterName string
 }
 
-//func newRemoteConn(conn net.Conn, sconn ssh.Conn, accessPoint auth.AccessPoint, domain string, proxyName string) *remoteConn {
 func newRemoteConn(cfg *connConfig) *remoteConn {
 	c := &remoteConn{
 		log: logrus.WithFields(logrus.Fields{
@@ -147,7 +147,6 @@ func (c *remoteConn) OpenChannel(name string, data []byte) (ssh.Channel, error) 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	//ssh.DiscardRequests(requestCh)
 
 	return channel, nil
 }
@@ -220,13 +219,11 @@ func (c *remoteConn) periodicSendDiscoveryRequests() {
 	}
 }
 
-// sendDiscovery requests sends special "Discovery Requests"
-// back to the connected agent.
-// Discovery request consists of the proxies that are part
-// of the cluster, but did not receive the connection from the agent.
-// Agent will act on a discovery request attempting
-// to establish connection to the proxies that were not discovered.
-// See package documentation for more details.
+// sendDiscovery requests sends special "Discovery Requests" back to the
+// connected agent. Discovery request consists of the proxies that are part
+// of the cluster, but did not receive the connection from the agent. Agent
+// will act on a discovery request attempting to establish connection to the
+// proxies that were not discovered.
 func (c *remoteConn) findAndSend() error {
 	// Find all proxies that don't have a connection to a remote agent. If all
 	// proxies have connections, return right away.

@@ -141,7 +141,8 @@ type Server struct {
 	// back to auth server
 	heartbeat *srv.Heartbeat
 
-	// useTunnel
+	// useTunnel is used to inform other components that this server is
+	// requesting connections to it come over a reverse tunnel.
 	useTunnel bool
 }
 
@@ -219,7 +220,6 @@ func (s *Server) Close() error {
 // Shutdown performs graceful shutdown
 func (s *Server) Shutdown(ctx context.Context) error {
 	// wait until connections drain off
-	fmt.Printf("--> Shutdown: here.\n")
 	err := s.srv.Shutdown(ctx)
 	s.cancel()
 	s.reg.Close()
@@ -239,6 +239,8 @@ func (s *Server) Start() error {
 	}
 	go s.heartbeat.Run()
 
+	// If the server requested connections to it arrive over a reverse tunnel,
+	// don't call Start() which listens on a socket, return right away.
 	if s.useTunnel {
 		return nil
 	}
@@ -259,6 +261,8 @@ func (s *Server) Wait() {
 	s.srv.Wait(context.TODO())
 }
 
+// HandleConnection is called after a connection has been accepted and starts
+// to perform the SSH handshake immediately.
 func (s *Server) HandleConnection(conn net.Conn) {
 	s.srv.HandleConnection(conn)
 }

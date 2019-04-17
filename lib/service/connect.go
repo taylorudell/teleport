@@ -780,6 +780,8 @@ func (process *TeleportProcess) rotate(conn *Connector, localState auth.StateV2,
 	}
 }
 
+// newClient attempts to connect directly to the Auth Server. If it fails, it
+// falls back to trying to connect to the Auth Server through the proxy.
 func (process *TeleportProcess) newClient(authServers []utils.NetAddr, identity *auth.Identity) (*auth.Client, bool, error) {
 	directClient, err := process.newClientDirect(authServers, identity)
 	if err != nil {
@@ -810,8 +812,9 @@ func (process *TeleportProcess) newClient(authServers []utils.NetAddr, identity 
 	return directClient, false, nil
 }
 
+// discoverProxy uses the web proxy to discover where the SSH reverse tunnel
+// server is running.
 func (process *TeleportProcess) discoverProxy(addrs []utils.NetAddr) (string, error) {
-
 	var errs []error
 	for _, addr := range addrs {
 		// In insecure mode, any certificate is accepted. In secure mode the hosts

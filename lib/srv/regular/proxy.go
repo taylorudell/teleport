@@ -291,9 +291,10 @@ func (t *proxySubsys) proxyToHost(
 	if server != nil {
 		serverAddr = server.GetAddr()
 
+		// Check if server requested to be connected to over a reverse tunnel.
 		if server.GetUseTunnel() {
 			useTunnel = true
-			serverAddr = server.GetName() + ".example.com"
+			serverAddr = fmt.Sprintf("%v.%v", server.GetName(), t.clusterName)
 		}
 	} else {
 		if !specifiedPort {

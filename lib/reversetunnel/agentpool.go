@@ -18,7 +18,6 @@ package reversetunnel
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
 	"net"
 	"sync"
@@ -36,7 +35,9 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
+// ServerHandler is an interface to the underlying SSH server.
 type ServerHandler interface {
+	// HandleConnection performs a SSH handshake and then handles the connection.
 	HandleConnection(conn net.Conn)
 }
 
@@ -65,8 +66,6 @@ type AgentPoolConfig struct {
 	AccessPoint auth.AccessPoint
 	// HostSigners is a list of host signers this agent presents itself as
 	HostSigners []ssh.Signer
-	// TLSConfig
-	TLSConfig *tls.Config
 	// HostUUID is a unique ID of this host
 	HostUUID string
 	// Context is an optional context
@@ -78,9 +77,9 @@ type AgentPoolConfig struct {
 	Clock clockwork.Clock
 	// KubeDialAddr is an address of a kubernetes proxy
 	KubeDialAddr utils.NetAddr
-	// Server
+	// Server is the underlying SSH server.
 	Server ServerHandler
-	// Component
+	// Component is the Teleport component this agent pool is running in.
 	Component string
 }
 
@@ -300,6 +299,9 @@ func (m *AgentPool) pollAndSyncAgents() {
 }
 
 func (m *AgentPool) addAgent(key agentKey, discoverProxies []services.Server) error {
+	// If the component connecting is a proxy, get the cluster name from the
+	// tunnelID. If it's a node, get the cluster name from the agent pool
+	// configuration itself.
 	clusterName := key.tunnelID
 	if key.tunnelType == string(services.NodeTunnel) {
 		clusterName = m.cfg.Cluster
@@ -310,7 +312,6 @@ func (m *AgentPool) addAgent(key agentKey, discoverProxies []services.Server) er
 		ClusterName:     clusterName,
 		Username:        m.cfg.HostUUID,
 		Signers:         m.cfg.HostSigners,
-		TLSConfig:       m.cfg.TLSConfig,
 		Client:          m.cfg.Client,
 		AccessPoint:     m.cfg.AccessPoint,
 		Context:         m.ctx,
@@ -385,6 +386,10 @@ func (m *AgentPool) syncAgents(tunnels []services.ReverseTunnel) error {
 	m.Lock()
 	defer m.Unlock()
 
+	// For proxies, get all tunnels of proxy type. For nodes, get all all
+	// tunnels of type node and with the same UUID as this agent pool. Since the
+	// agent pool for nodes dialing back resides in the node itself, this makes
+	// sure only tunnels for this node are picked up.
 	filtered := make([]services.ReverseTunnel, 0, len(tunnels))
 	switch m.cfg.Component {
 	case teleport.ComponentProxy:
@@ -395,7 +400,7 @@ func (m *AgentPool) syncAgents(tunnels []services.ReverseTunnel) error {
 		}
 	case teleport.ComponentNode:
 		for _, t := range tunnels {
-			if t.GetName() == m.cfg.HostUUID {
+			if t.GetType() == services.NodeTunnel && t.GetName() == m.cfg.HostUUID {
 				filtered = append(filtered, t)
 			}
 		}
@@ -407,20 +412,6 @@ func (m *AgentPool) syncAgents(tunnels []services.ReverseTunnel) error {
 	}
 
 	agentsToAdd, agentsToRemove := diffTunnels(m.agents, keys)
-
-	//if m.cfg.Component != "proxy" {
-	//	fmt.Printf("--> fetch and sync: [%v] filtered: %v.\n", m.cfg.Component, filtered)
-	//	for k, _ := range m.agents {
-	//		fmt.Printf("--> fetch and sync: [%v] m.agents: %v.\n", m.cfg.Component, k.tunnelID)
-	//	}
-	//	for k, _ := range keys {
-	//		fmt.Printf("--> fetch and sync: [%v] keys: %v.\n", m.cfg.Component, k.tunnelID)
-	//	}
-	//	fmt.Printf("--> fetch and sync: [%v] agentsToAdd: %v.\n", m.cfg.Component, len(agentsToAdd))
-	//	for _, v := range agentsToRemove {
-	//		fmt.Printf("--> fetch and sync: [%v] agentsToRemove: %v.\n", m.cfg.Component, v.tunnelID)
-	//	}
-	//}
 
 	// remove agents from deleted reverse tunnels
 	for _, key := range agentsToRemove {

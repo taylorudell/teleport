@@ -1426,11 +1426,6 @@ func (process *TeleportProcess) initSSH() error {
 			// Start upserting reverse tunnel in a loop while the process is running.
 			go process.upsertTunnelForever(conn)
 
-			tlsConfig, err := conn.ClientIdentity.TLSConfig(cfg.CipherSuites)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-
 			// Create and start an agent pool.
 			agentPool, err = reversetunnel.NewAgentPool(reversetunnel.AgentPoolConfig{
 				Component:   teleport.ComponentNode,
@@ -1438,7 +1433,6 @@ func (process *TeleportProcess) initSSH() error {
 				Client:      conn.Client,
 				AccessPoint: conn.Client,
 				HostSigners: []ssh.Signer{conn.ServerIdentity.KeySigner},
-				TLSConfig:   tlsConfig,
 				Cluster:     conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority],
 				Server:      s,
 			})
@@ -1496,6 +1490,7 @@ func (process *TeleportProcess) upsertTunnelForever(conn *Connector) {
 		select {
 		case <-process.ExitContext().Done():
 			return
+		// TODO: Constant.
 		case <-time.Tick(90 * time.Second):
 			process.upsertTunnel(conn)
 		}

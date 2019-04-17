@@ -623,7 +623,7 @@ func NewServerIdentity(clt *AuthServer, hostID string, role teleport.Role) (*Ide
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return ReadIdentityFromKeyPair(keys.Key, keys.Cert, keys.TLSCert, keys.TLSCACerts, keys.SSHCACerts)
+	return ReadIdentityFromKeyPair(keys)
 }
 
 // clt limits required interface to the necessary methods

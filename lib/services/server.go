@@ -52,9 +52,9 @@ type Server interface {
 	GetRotation() Rotation
 	// SetRotation sets the state of certificate authority rotation.
 	SetRotation(Rotation)
-	// GetUseTunnel
+	// GetUseTunnel gets if a reverse tunnel should be used to connect to this node.
 	GetUseTunnel() bool
-	// SetUseTunnel
+	// SetUseTunnel sets if a reverse tunnel should be used to connect to this node.
 	SetUseTunnel(bool)
 	// String returns string representation of the server
 	String() string
@@ -208,12 +208,12 @@ func (s *ServerV2) SetRotation(r Rotation) {
 	s.Spec.Rotation = r
 }
 
-// GetUseTunnel
+// GetUseTunnel gets if a reverse tunnel should be used to connect to this node.
 func (s *ServerV2) GetUseTunnel() bool {
 	return s.Spec.UseTunnel
 }
 
-// SetUseTunnel
+// SetUseTunnel sets if a reverse tunnel should be used to connect to this node.
 func (s *ServerV2) SetUseTunnel(useTunnel bool) {
 	s.Spec.UseTunnel = useTunnel
 }

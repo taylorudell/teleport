@@ -47,13 +47,15 @@ type remoteSite struct {
 	connections []*remoteConn
 	lastUsed    int
 	srv         *server
-	//transport   *http.Transport
+
+	// connInfo represents the connection to the remote cluster.
 	connInfo services.TunnelConnection
-	// lastConnInfo is the last conn
+	// lastConnInfo is the last connInfo.
 	lastConnInfo services.TunnelConnection
-	ctx          context.Context
-	cancel       context.CancelFunc
-	clock        clockwork.Clock
+
+	ctx    context.Context
+	cancel context.CancelFunc
+	clock  clockwork.Clock
 
 	// certificateCache caches host certificates for the forwarding server.
 	certificateCache *certificateCache

@@ -239,7 +239,6 @@ func NewServer(cfg Config) (Server, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		//go cluster.periodicSendDiscoveryRequests()
 
 		srv.localSites = append(srv.localSites, cluster)
 	}
@@ -498,6 +497,7 @@ func (s *server) HandleNewChan(conn net.Conn, sconn *ssh.ServerConn, nch ssh.New
 	switch channelType {
 	case chanHeartbeat:
 		s.handleHeartbeat(conn, sconn, nch)
+	// TODO: Use a constant.
 	case "teleport-transport":
 		s.handleTransport(sconn, nch)
 	default:
@@ -545,16 +545,16 @@ func (s *server) handleHeartbeat(conn net.Conn, sconn *ssh.ServerConn, nch ssh.N
 	// nodes it's a node dialing back.
 	val, ok := sconn.Permissions.Extensions["role"]
 	if !ok {
-		s.handleNewCluster(conn, sconn, nch)
-	}
-	switch {
-	case val == string(teleport.RoleNode):
-		s.handleNewNode(conn, sconn, nch)
-	case val == string(teleport.RoleProxy):
-		s.handleNewCluster(conn, sconn, nch)
-	default:
 		log.Errorf("Failed to accept connection, unknown role: %v.", val)
 		nch.Reject(ssh.ConnectionFailed, "unknown role")
+	}
+	switch {
+	// Node dialing back.
+	case val == string(teleport.RoleNode):
+		s.handleNewNode(conn, sconn, nch)
+	// Proxy dialing back.
+	case val == string(teleport.RoleProxy):
+		s.handleNewCluster(conn, sconn, nch)
 	}
 }
 

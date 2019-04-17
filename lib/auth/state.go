@@ -146,7 +146,13 @@ func (p *ProcessStorage) ReadIdentity(name string, role teleport.Role) (*Identit
 	if err := utils.UnmarshalWithSchema(GetIdentitySchema(), &res, item.Value); err != nil {
 		return nil, trace.BadParameter(err.Error())
 	}
-	return ReadIdentityFromKeyPair(res.Spec.Key, res.Spec.SSHCert, res.Spec.TLSCert, res.Spec.TLSCACerts, res.Spec.SSHCACerts)
+	return ReadIdentityFromKeyPair(&PackedKeys{
+		Key:        res.Spec.Key,
+		Cert:       res.Spec.SSHCert,
+		TLSCert:    res.Spec.TLSCert,
+		TLSCACerts: res.Spec.TLSCACerts,
+		SSHCACerts: res.Spec.SSHCACerts,
+	})
 }
 
 // WriteIdentity writes identity to the backend.
@@ -254,7 +260,8 @@ type IdentitySpecV2 struct {
 	// TLSCACert is a list of PEM encoded x509 certificate of the
 	// certificate authority of the cluster.
 	TLSCACerts [][]byte `json:"tls_ca_certs,omitempty"`
-	// SSHCACerts
+	// SSHCACerts is a list of SSH certificate authorities encoded in the
+	// authorized_keys format.
 	SSHCACerts [][]byte `json:"ssh_ca_certs,omitempty"`
 }
 

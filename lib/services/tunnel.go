@@ -381,8 +381,12 @@ func (*TeleportTunnelMarshaler) MarshalReverseTunnel(rt ReverseTunnel, opts ...M
 }
 
 const (
-	NodeTunnel  TunnelType = "node"
+	// NodeTunnel is a tunnel where the node connects to the proxy (dial back).
+	NodeTunnel TunnelType = "node"
+
+	// ProxyTunnel is a tunnel where a proxy connects to the proxy (trusted cluster).
 	ProxyTunnel TunnelType = "proxy"
 )
 
+// TunnelType is the type of tunnel. Either node or proxy.
 type TunnelType string

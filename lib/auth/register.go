@@ -17,17 +17,12 @@ limitations under the License.
 package auth
 
 import (
-	//"bytes"
-	//"crypto/tls"
-	"crypto/x509"
-	//"encoding/json"
 	"context"
+	"crypto/x509"
 	"io/ioutil"
-	//"net/http"
 	"strings"
 
 	"github.com/gravitational/teleport"
-	//"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -58,7 +53,7 @@ func LocalRegister(id IdentityID, authServer *AuthServer, additionalPrincipals, 
 		return nil, trace.Wrap(err)
 	}
 
-	identity, err := ReadIdentityFromKeyPair(keys.Key, keys.Cert, keys.TLSCert, keys.TLSCACerts, keys.SSHCACerts)
+	identity, err := ReadIdentityFromKeyPair(keys)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -94,11 +89,14 @@ type RegisterParams struct {
 	CAPin string
 	// CAPath is the path to the CA file.
 	CAPath string
-	// CredsClient
-	CredsClient HostCredentialer
+	// CredsClient is a client that can fetch host credentials.
+	CredsClient CredGetter
 }
 
-type HostCredentialer interface {
+// CredGetter is an interface for a client that can be used to get host
+// credentials.
+type CredGetter interface {
+	// HostCredentials are used to get a server host credentials.
 	HostCredentials(context.Context, RegisterUsingTokenRequest) (*PackedKeys, error)
 }
 
@@ -131,6 +129,7 @@ func Register(params RegisterParams) (*Identity, error) {
 	return ident, nil
 }
 
+// registerThroughProxy is used to register through the proxy server.
 func registerThroughProxy(token string, params RegisterParams) (*Identity, error) {
 	log.Debugf("Attempting to register through proxy server.")
 
@@ -148,11 +147,12 @@ func registerThroughProxy(token string, params RegisterParams) (*Identity, error
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	keys.Key = params.PrivateKey
 
-	return ReadIdentityFromKeyPair(
-		params.PrivateKey, keys.Cert, keys.TLSCert, keys.TLSCACerts, keys.SSHCACerts)
+	return ReadIdentityFromKeyPair(keys)
 }
 
+// registerThroughAuth is used to register through the auth server.
 func registerThroughAuth(token string, params RegisterParams) (*Identity, error) {
 	log.Debugf("Attempting to register through auth server.")
 
@@ -187,9 +187,9 @@ func registerThroughAuth(token string, params RegisterParams) (*Identity, error)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	keys.Key = params.PrivateKey
 
-	return ReadIdentityFromKeyPair(
-		params.PrivateKey, keys.Cert, keys.TLSCert, keys.TLSCACerts, keys.SSHCACerts)
+	return ReadIdentityFromKeyPair(keys)
 }
 
 // insecureRegisterClient attempts to connects to the Auth Server using the
@@ -335,7 +335,9 @@ func ReRegister(params ReRegisterParams) (*Identity, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return ReadIdentityFromKeyPair(params.PrivateKey, keys.Cert, keys.TLSCert, keys.TLSCACerts, keys.SSHCACerts)
+	keys.Key = params.PrivateKey
+
+	return ReadIdentityFromKeyPair(keys)
 }
 
 func readToken(token string) (string, error) {
@@ -360,8 +362,8 @@ type PackedKeys struct {
 	Cert []byte `json:"cert"`
 	// TLSCert is an X509 certificate
 	TLSCert []byte `json:"tls_cert"`
-	// TLSCACerts is a list of certificate authorities
+	// TLSCACerts is a list of TLS certificate authorities.
 	TLSCACerts [][]byte `json:"tls_ca_certs"`
-	// SSHCACerts
+	// SSHCACerts is a list of SSH certificate authorities.
 	SSHCACerts [][]byte `json:"ssh_ca_certs"`
 }

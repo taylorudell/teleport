@@ -90,37 +90,44 @@ type localSite struct {
 	// certificateCache caches host certificates for the forwarding server.
 	certificateCache *certificateCache
 
-	// remoteConns
+	// remoteConns maps UUID to a remote connection.
 	remoteConns map[string]*remoteConn
 
+	// closeContext is used to signal when the site is shutting down.
 	closeContext context.Context
 }
 
-// GetTunnelsCount always returns 1 for local cluster
+// GetTunnelsCount always the number of tunnel connections to this cluster.
 func (s *localSite) GetTunnelsCount() int {
-	return 1
+	return len(s.remoteConns)
 }
 
+// CachingAccessPoint returns a auth.AccessPoint for this cluster.
 func (s *localSite) CachingAccessPoint() (auth.AccessPoint, error) {
 	return s.accessPoint, nil
 }
 
+// GetClient returns a client to the full Auth Server API.
 func (s *localSite) GetClient() (auth.ClientI, error) {
 	return s.client, nil
 }
 
+// String returns a string representing this cluster.
 func (s *localSite) String() string {
 	return fmt.Sprintf("local(%v)", s.domainName)
 }
 
+// GetStatus always returns online because the localsite is never offline.
 func (s *localSite) GetStatus() string {
 	return teleport.RemoteClusterStatusOnline
 }
 
+// GetName returns the name of the cluster.
 func (s *localSite) GetName() string {
 	return s.domainName
 }
 
+// TODO: Fix this.
 func (s *localSite) GetLastConnected() time.Time {
 	return time.Now()
 }
