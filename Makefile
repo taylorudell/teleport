@@ -99,7 +99,7 @@ endif
 clean:
 	@echo "---> Cleaning up OSS build artifacts."
 	rm -rf $(BUILDDIR)
-	go clean -cache
+	-go clean -cache
 	rm -rf $(GOPKGDIR)
 	rm -rf teleport
 	rm -rf *.gz
