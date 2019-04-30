@@ -1,4 +1,6 @@
 # Gravitational Teleport
+[![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2Ftaylorudell%2Fteleport.svg?type=shield)](https://app.fossa.io/projects/git%2Bgithub.com%2Ftaylorudell%2Fteleport?ref=badge_shield)
+
 
 Gravitational Teleport is a modern security gateway for remotely accessing:
 * Clusters of Linux servers via SSH or SSH-over-HTTPS in a browser.
@@ -180,3 +182,7 @@ applications into multiple environments _at the same time_:
 * Colocation 
 * Private enterprise clouds located behind firewalls
 
+
+
+## License
+[![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2Ftaylorudell%2Fteleport.svg?type=large)](https://app.fossa.io/projects/git%2Bgithub.com%2Ftaylorudell%2Fteleport?ref=badge_large)
